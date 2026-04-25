@@ -9,10 +9,6 @@
             {{ auth()->user()->isAdmin() ? 'All transactions' : 'Your transactions' }}
         </p>
     </div>
-    <a href="{{ route('transactions.create') }}"
-       class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-sm">
-        + New Transaction
-    </a>
 </div>
 
 {{-- Search --}}
@@ -30,6 +26,10 @@
             Clear
         </a>
         @endif
+        <a href="{{ route('transactions.export', ['search' => $search]) }}"
+        class="flex items-center gap-1.5 px-3 py-2 bg-gray-700 text-white text-xs font-semibold rounded-xl hover:bg-gray-800 transition-all">
+            📋 Export PDF
+        </a>
     </div>
 </form>
 
@@ -48,7 +48,9 @@
                 <th class="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Total</th>
                 <th class="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Payment</th>
                 <th class="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Date</th>
+                @if(auth()->user()->isAdmin())
                 <th class="px-5 py-3"></th>
+                @endif
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
@@ -68,21 +70,18 @@
                     </span>
                 </td>
                 <td class="px-5 py-3 text-gray-500">{{ $t->created_at->format('M d, Y') }}</td>
+                @if(auth()->user()->isAdmin())
                 <td class="px-5 py-3">
-                    <div class="flex items-center gap-2">
-                        <a href="{{ route('transactions.show', $t) }}"
-                           class="text-xs text-indigo-600 hover:underline font-medium">View</a>
-                        <a href="{{ route('transactions.edit', $t) }}"
-                           class="text-xs text-gray-500 hover:underline font-medium">Edit</a>
-                        <form method="POST" action="{{ route('transactions.destroy', $t) }}"
-                              onsubmit="return confirm('Delete this transaction?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="text-xs text-red-500 hover:underline font-medium">
-                                Delete
-                            </button>
-                        </form>
-                    </div>
+                    <form method="POST" action="{{ route('transactions.destroy', $t) }}"
+                          onsubmit="return confirm('Delete this transaction record?')"
+                          style="display:contents">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="text-xs text-red-500 hover:underline font-medium">
+                            Delete
+                        </button>
+                    </form>
                 </td>
+                @endif
             </tr>
             @empty
             <tr>

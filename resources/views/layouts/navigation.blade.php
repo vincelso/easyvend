@@ -19,6 +19,11 @@
                         Transactions
                     </x-nav-link>
 
+                    <x-nav-link href="{{ route('orders.index') }}"
+                        class="{{ request()->routeIs('orders.*')">
+                        Orders
+                    </x-nav-link>
+
                     @if(auth()->user()->isAdmin())
                         <x-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
                             Products

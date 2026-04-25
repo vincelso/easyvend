@@ -3,12 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transaction;
-use App\Models\Product;
 use Illuminate\Http\Request;
 
 class TransactionController extends Controller
 {
-    // READ
     public function index(Request $request)
     {
         $user   = auth()->user();
@@ -31,110 +29,46 @@ class TransactionController extends Controller
         return view('transactions.index', compact('transactions', 'search'));
     }
 
-    // CREATE form
-    public function create()
+        // ── Export transactions as PDF ─────────────────
+    public function export(Request $request)
     {
-        $products = Product::where('stock', '>', 0)->orderBy('name')->get();
-        return view('transactions.create', compact('products'));
-    }
+        $user   = auth()->user();
+        $search = $request->get('search', '');
 
-    // STORE
-    public function store(Request $request)
-    {
-        $request->validate([
-            'product_id'     => 'required|exists:products,id',
-            'qty'            => 'required|integer|min:1',
-            'payment_method' => 'required|string',
-        ]);
+        $query = Transaction::with(['product', 'user']);
 
-        $product = Product::findOrFail($request->product_id);
-
-        if ($request->qty > $product->stock) {
-            return back()
-                ->withErrors(['qty' => "Only {$product->stock} items in stock."])
-                ->withInput();
+        if ($user->isCashier()) {
+            $query->where('user_id', $user->id);
+        }
+        if ($search) {
+            $query->whereHas('product', fn($q) =>
+                $q->where('name', 'like', "%{$search}%")
+            );
         }
 
-        Transaction::create([
-            'user_id'        => auth()->id(),
-            'product_id'     => $product->id,
-            'qty'            => $request->qty,
-            'price'          => $product->price,
-            'total'          => $product->price * $request->qty,
-            'payment_method' => $request->payment_method,
-        ]);
+        $transactions = $query->latest()->get();
 
-        $product->decrement('stock', $request->qty);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('transactions.pdf', [
+            'transactions' => $transactions,
+            'search'       => $search,
+            'generatedAt'  => now()->format('M d, Y h:i A'),
+            'generatedBy'  => $user->name,
+        ])->setPaper('a4', 'portrait');
 
-        return redirect()->route('transactions.index')
-                         ->with('success', 'Transaction recorded successfully.');
+        return $pdf->download('easyvend-transactions-' . now()->format('Y-m-d') . '.pdf');
     }
 
-    // SHOW
-    public function show(Transaction $transaction)
-    {
-        $this->gate($transaction);
-        return view('transactions.show', compact('transaction'));
-    }
-
-    // EDIT form
-    public function edit(Transaction $transaction)
-    {
-        $this->gate($transaction);
-        $products = Product::orderBy('name')->get();
-        return view('transactions.edit', compact('transaction', 'products'));
-    }
-
-    // UPDATE
-    public function update(Request $request, Transaction $transaction)
-    {
-        $this->gate($transaction);
-
-        $request->validate([
-            'product_id'     => 'required|exists:products,id',
-            'qty'            => 'required|integer|min:1',
-            'payment_method' => 'required|string',
-        ]);
-
-        $product = Product::findOrFail($request->product_id);
-
-        // Restore old stock first
-        $transaction->product->increment('stock', $transaction->qty);
-
-        if ($request->qty > $product->fresh()->stock) {
-            $transaction->product->decrement('stock', $transaction->qty);
-            return back()
-                ->withErrors(['qty' => "Only {$product->stock} items in stock."])
-                ->withInput();
-        }
-
-        $product->decrement('stock', $request->qty);
-
-        $transaction->update([
-            'product_id'     => $product->id,
-            'qty'            => $request->qty,
-            'price'          => $product->price,
-            'total'          => $product->price * $request->qty,
-            'payment_method' => $request->payment_method,
-        ]);
-
-        return redirect()->route('transactions.index')
-                         ->with('success', 'Transaction updated successfully.');
-    }
-
-    // DELETE
     public function destroy(Transaction $transaction)
     {
         $this->gate($transaction);
 
-        $transaction->product->increment('stock', $transaction->qty);
+        // Note: we do NOT restore stock here since order already managed it
         $transaction->delete();
 
         return redirect()->route('transactions.index')
-                         ->with('success', 'Transaction deleted.');
+                         ->with('success', 'Transaction record deleted.');
     }
 
-    // ── Authorization helper ──────────────────────
     private function gate(Transaction $transaction): void
     {
         if (auth()->user()->isCashier() && $transaction->user_id !== auth()->id()) {
