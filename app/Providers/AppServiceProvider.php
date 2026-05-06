@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Product;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,6 +13,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Force HTTPS in production
+        if (config('app.env') === 'production') {
+            URL::forceScheme('https');
+        }
+
         // Share alert counts with navigation on every page
         View::composer('layouts.navigation', function ($view) {
             if (auth()->check() && auth()->user()->isAdmin()) {
