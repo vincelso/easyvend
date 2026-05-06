@@ -35,6 +35,9 @@ WORKDIR /var/www
 # Copy project files
 COPY . .
 
+# Install JS dependencies and build frontend assets  👈 ADD THIS
+RUN npm install && npm run build
+
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
