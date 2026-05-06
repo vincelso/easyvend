@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 // ── Public ────────────────────────────────────────
 Route::get('/', function () {
     return redirect('/login');
-});
+})->name('home');
 
 // ── Authenticated ─────────────────────────────────
 Route::middleware(['auth'])->group(function () {
