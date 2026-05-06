@@ -48,11 +48,17 @@
 </head>
 <body>
 
-{{-- Header --}}
 <div class="header">
-    <h1>EasyVend — Report</h1>
-    <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
-    <div class="meta">Period: Last {{ $period }} days &nbsp;|&nbsp; Report type: {{ ucfirst($type) }}</div>
+    <div style="display:table; width:100%">
+        <div style="display:table-cell; vertical-align:middle; width:120px;">
+            <img src="{{ public_path('images/logo.png') }}" style="height:50px; width:auto;">
+        </div>
+        <div style="display:table-cell; vertical-align:middle;">
+            <h1>EasyVend — Report</h1>
+            <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+            <div class="meta">Period: Last {{ $period }} days &nbsp;|&nbsp; Report type: {{ ucfirst($type) }}</div>
+        </div>
+    </div>
 </div>
 
 <div class="container">

@@ -28,12 +28,23 @@
 </head>
 <body>
 <div class="header">
-    <h1>EasyVend — Transactions Report</h1>
-    <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+    <div style="display:table; width:100%">
+        <div style="display:table-cell; vertical-align:middle; width:120px;">
+            <img src="{{ public_path('images/logo.png') }}" style="height:50px; width:auto;">
+        </div>
+        <div style="display:table-cell; vertical-align:middle;">
+            <h1>EasyVend — Transactions Report</h1>
+            <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+        </div>
+    </div>
 </div>
 <div class="container">
     <div class="meta">
         @if($search) Search: "<span>{{ $search }}</span>" &nbsp;|&nbsp; @endif
+        @if(!empty($category)) Category: <span>{{ $category }}</span> &nbsp;|&nbsp; @endif
+        @if(!empty($dateFrom) || !empty($dateTo))
+            Period: <span>{{ $dateFrom ?: 'All time' }}</span> to <span>{{ $dateTo ?: 'present' }}</span> &nbsp;|&nbsp;
+        @endif
         Total records: <span>{{ $transactions->count() }}</span>
     </div>
 
@@ -75,7 +86,7 @@
                 <td>P{{ number_format($t->price, 2) }}</td>
                 <td style="font-weight:bold; color:#4f46e5">P{{ number_format($t->total, 2) }}</td>
                 <td><span class="badge badge-blue">{{ $t->payment_method }}</span></td>
-                <td>{{ $t->created_at->format('M d, Y') }}</td>
+                <td>{{ $t->created_at->format('M d, Y h:i A') }}</td>
             </tr>
             @empty
             <tr><td colspan="8" style="text-align:center; padding:20px; color:#9ca3af">No transactions found.</td></tr>

@@ -4,37 +4,28 @@
 
 @section('content')
 
-@if($expiredCount > 0)
-<a href="{{ route('products.index', ['filter' => 'expired']) }}" class="mb-4 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm hover:bg-red-100 transition-all">
-    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-    </svg>
-    <span><strong>{{ $expiredCount }} product(s) have expired</strong> and should be removed from the shelf immediately. Click to view →</span>
-</a>
-@endif
 
-@if($expiringSoonCount > 0)
-<a href="{{ route('products.index', ['filter' => 'expiring']) }}" class="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm hover:bg-amber-100 transition-all">
-    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-    </svg>
-    <span><strong>{{ $expiringSoonCount }} product(s) expiring within 30 days.</strong> Consider discounting or prioritizing their sale. Click to view →</span>
-</a>
-@endif
 
 <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
     <form method="GET" class="flex gap-2 flex-wrap items-center">
         <input type="text" name="search" value="{{ $search }}"
-               placeholder="Search name or category..."
-               class="border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-56">
+               placeholder="Search name..."
+               class="border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-48">
+        <select name="category"
+                class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+            <option value="">All Categories</option>
+            @foreach($categories as $cat)
+            <option value="{{ $cat }}" {{ $category === $cat ? 'selected' : '' }}>{{ $cat }}</option>
+            @endforeach
+        </select>
         <input type="hidden" name="filter" value="{{ $filter }}">
         <button class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all">Search</button>
-        @if($search || $filter)
+        @if($search || $filter || $category)
         <a href="{{ route('products.index') }}" class="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-all">Clear</a>
         @endif
     </form>
     <div class="flex items-center gap-2">
-        <a href="{{ route('products.export', ['search' => $search, 'filter' => $filter]) }}"
+        <a href="{{ route('products.export', ['search' => $search, 'filter' => $filter, 'category' => $category]) }}"
            class="px-3 py-2 bg-gray-700 text-white text-xs font-semibold rounded-xl hover:bg-gray-800 transition-all">
             📋 Export PDF
         </a>

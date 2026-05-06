@@ -1,45 +1,8 @@
 @extends('layouts.app')
 @section('title', 'Dashboard')
 @section('subtitle', 'Hello, ' . auth()->user()->name . '! Here\'s your overview.')
-
 @section('content')
 
-{{-- Low stock alert banner --}}
-@if($lowStockProducts->count() > 0 && auth()->user()->isAdmin())
-<div class="mb-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-    <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-    </svg>
-    <div class="flex-1">
-        <p class="text-amber-800 font-semibold text-sm">⚠ Low Stock Alert</p>
-        <p class="text-amber-700 text-xs mt-0.5">
-            {{ $lowStockProducts->count() }} product(s) are running low:
-            <span class="font-semibold">{{ $lowStockProducts->pluck('name')->join(', ') }}</span>
-        </p>
-    </div>
-    <a href="{{ route('products.index') }}"
-       class="text-amber-700 text-xs font-semibold hover:underline flex-shrink-0">
-        Manage →
-    </a>
-</div>
-@endif
-
-{{-- Out of stock banner --}}
-@if($outOfStockProducts->count() > 0 && auth()->user()->isAdmin())
-<div class="mb-5 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
-    <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-    </svg>
-    <div class="flex-1">
-        <p class="text-red-700 font-semibold text-sm">🚫 Out of Stock</p>
-        <p class="text-red-600 text-xs mt-0.5">
-            {{ $outOfStockProducts->count() }} product(s) are out of stock:
-            <span class="font-semibold">{{ $outOfStockProducts->pluck('name')->join(', ') }}</span>
-        </p>
-    </div>
-</div>
-@endif
 
 {{-- Cashier RBAC notice --}}
 @if(auth()->user()->isCashier())
@@ -66,7 +29,7 @@
 
     <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Orders</span>
+            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Sales</span>
             <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
                 <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -171,7 +134,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
-                    New Order
+                    New Sale
                 </a>
                 <a href="{{ route('transactions.index') }}"
                 class="flex items-center gap-2 w-full px-3 py-2.5 bg-gray-50 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-100 transition-all">

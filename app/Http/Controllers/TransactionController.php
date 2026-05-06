@@ -7,33 +7,51 @@ use Illuminate\Http\Request;
 
 class TransactionController extends Controller
 {
-    public function index(Request $request)
+            public function index(Request $request)
     {
-        $user   = auth()->user();
-        $search = $request->get('search', '');
+        $user     = auth()->user();
+        $search   = $request->get('search', '');
+        $category = $request->get('category', '');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
 
         $query = Transaction::with(['product', 'user']);
 
         if ($user->isCashier()) {
             $query->where('user_id', $user->id);
         }
-
         if ($search) {
             $query->whereHas('product', fn($q) =>
                 $q->where('name', 'like', "%{$search}%")
             );
+        }
+        if ($category) {
+            $query->whereHas('product', fn($q) =>
+                $q->where('category', $category)
+            );
+        }
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
         }
 
         $transactions = $query->latest()->paginate(8)->withQueryString();
+        $categories   = \App\Models\Product::distinct()->orderBy('category')->pluck('category');
 
-        return view('transactions.index', compact('transactions', 'search'));
+        return view('transactions.index', compact(
+            'transactions', 'search', 'category', 'categories', 'dateFrom', 'dateTo'
+        ));
     }
 
-        // ── Export transactions as PDF ─────────────────
     public function export(Request $request)
     {
-        $user   = auth()->user();
-        $search = $request->get('search', '');
+        $user     = auth()->user();
+        $search   = $request->get('search', '');
+        $category = $request->get('category', '');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
 
         $query = Transaction::with(['product', 'user']);
 
@@ -44,6 +62,17 @@ class TransactionController extends Controller
             $query->whereHas('product', fn($q) =>
                 $q->where('name', 'like', "%{$search}%")
             );
+        }
+        if ($category) {
+            $query->whereHas('product', fn($q) =>
+                $q->where('category', $category)
+            );
+        }
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
         }
 
         $transactions = $query->latest()->get();
@@ -51,6 +80,9 @@ class TransactionController extends Controller
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('transactions.pdf', [
             'transactions' => $transactions,
             'search'       => $search,
+            'category'     => $category,
+            'dateFrom'     => $dateFrom,
+            'dateTo'       => $dateTo,
             'generatedAt'  => now()->format('M d, Y h:i A'),
             'generatedBy'  => $user->name,
         ])->setPaper('a4', 'portrait');

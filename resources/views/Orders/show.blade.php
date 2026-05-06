@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Order #' . $order->id)
+@section('title', 'Sale #' . $order->id)
 @section('subtitle', $order->customer_name . ' · ' . ucfirst($order->status))
 
 @section('content')
@@ -13,7 +13,7 @@
             {{-- Header --}}
             <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                    <h2 class="font-bold text-gray-900">Order #{{ $order->id }}</h2>
+                    <h2 class="font-bold text-gray-900">Sale #{{ $order->id }}</h2>
                     <p class="text-xs text-gray-400 mt-0.5">
                         {{ $order->created_at->format('M d, Y h:i A') }} &middot;
                         Cashier: {{ $order->user->name ?? '—' }}
@@ -116,7 +116,7 @@
                         @endif
                     </tr>
                     @empty
-                    <tr><td colspan="5" class="px-5 py-8 text-center text-gray-400 text-sm">No items in this order.</td></tr>
+                    <tr><td colspan="5" class="px-5 py-8 text-center text-gray-400 text-sm">No items in this sale.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -131,12 +131,13 @@
         {{-- Actions --}}
         <div class="flex items-center gap-3 mt-4 flex-wrap">
             @if($order->isOpen())
-                <form method="POST" action="{{ route('orders.complete', $order) }}" style="display:contents">
+                <form method="POST" action="{{ route('orders.complete', $order) }}" style="display:contents" id="complete-form">
                     @csrf
+                    <input type="hidden" name="amount_tendered" id="hidden-tendered" value="0">
                     <button type="submit"
                             class="px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-all shadow-sm"
-                            onclick="return confirm('Mark this order as completed?')">
-                        ✓ Complete Order
+                            onclick="return confirmComplete()">
+                        ✓ Complete Sale
                     </button>
                 </form>
             @endif
@@ -151,11 +152,11 @@
 
             <a href="{{ route('orders.create') }}"
                class="px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-sm">
-                + New Order
+                + New Sale
             </a>
             <a href="{{ route('orders.index') }}"
                class="px-5 py-2.5 border border-gray-200 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 transition-all">
-                View All Orders
+                View All Sales
             </a>
             @if(auth()->user()->isAdmin() || $order->user_id === auth()->id())
                 <form method="POST" action="{{ route('orders.destroy', $order) }}" style="display:contents"
@@ -163,7 +164,7 @@
                     @csrf @method('DELETE')
                     <button type="submit"
                             class="px-5 py-2.5 border border-red-200 text-red-500 text-sm font-medium rounded-xl hover:bg-red-50 transition-all">
-                        Delete Order
+                        Delete Sale
                     </button>
                 </form>
             @endif
@@ -172,57 +173,99 @@
 
     
 
-    {{-- RIGHT: Add Item panel (only if open) --}}
-    @if($order->isOpen())
-    <div class="lg:col-span-2">
-        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">
-            Add Item to Order #{{ $order->id }}
-        </h2>
-        <div class="bg-white rounded-2xl border border-amber-200 shadow-sm p-5">
-            <form method="POST" action="{{ route('orders.addItem', $order) }}">
-                @csrf
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Product</label>
-                        <select name="product_id" required
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white transition-all">
-                            <option value="">-- Select product --</option>
-                            @foreach($products as $p)
-                            <option value="{{ $p->id }}" data-price="{{ $p->price }}">
-                                {{ $p->name }} — &#8369;{{ number_format($p->price, 2) }} ({{ $p->stock }} left)
-                            </option>
-                            @endforeach
-                        </select>
-                        @error('product_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Quantity</label>
-                        <input type="number" name="qty" min="1" value="1" required
-                               class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white transition-all">
-                        @error('qty')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                </div>
-                <button type="submit"
-                        class="w-full mt-5 py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all text-sm">
-                    + Add to This Order
-                </button>
-            </form>
-            <p class="text-xs text-gray-400 text-center mt-3">
-                Adding to order for <strong>{{ $order->customer_name }}</strong>
-            </p>
+    {{-- RIGHT: Product catalog to add items (only if open) --}}
+@if($order->isOpen())
+<div class="lg:col-span-2 flex flex-col gap-4">
+
+    {{-- Cash Calculator --}}
+    @if($order->payment_method === 'Cash')
+    <div class="bg-white rounded-2xl border border-green-200 shadow-sm p-4">
+        <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">💵 Cash Tendered</h2>
+        <input type="number" id="cash-tendered" placeholder="Cash received..."
+       oninput="computeChange()" step="0.01" min="0"
+       value="{{ $order->amount_tendered > 0 ? $order->amount_tendered : '' }}"
+       class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-300 mb-2">
+        <div class="grid grid-cols-3 gap-1 mb-2">
+            @foreach([20, 50, 100, 200, 500, 1000] as $amount)
+            <button type="button" onclick="setTendered({{ $amount }})"
+                    class="py-1 text-xs font-semibold border border-gray-200 rounded-lg hover:bg-green-50 hover:text-green-700 transition-all">
+                ₱{{ $amount }}
+            </button>
+            @endforeach
         </div>
-    </div>
-    @else
-    <div class="lg:col-span-2">
-        <div class="bg-green-50 border border-green-200 rounded-2xl p-5 text-center">
-            <div class="text-3xl mb-2">&#10003;</div>
-            <p class="font-bold text-green-700">Order Completed</p>
-            <p class="text-xs text-green-600 mt-1">This order has been finalized and cannot be modified.</p>
+        <div class="flex justify-between text-xs pt-2 border-t border-dashed border-gray-200">
+            <span class="text-gray-500 font-medium">Change</span>
+            <span id="display-change" class="font-black text-green-600 text-base">₱0.00</span>
         </div>
+        <p id="change-error" class="text-xs text-red-500 hidden mt-1">⚠ Amount is less than total.</p>
     </div>
     @endif
 
+    {{-- Product Search + Category Filter --}}
+    <div class="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden flex flex-col" style="max-height: 520px">
+        <div class="p-3 border-b border-gray-100 space-y-2">
+            <p class="text-xs font-bold text-gray-700 uppercase tracking-wide">Add Item to Sale #{{ $order->id }}</p>
+            <input type="text" id="product-search" placeholder="Search product..."
+                   oninput="filterProducts()"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 bg-gray-50">
+            <div class="flex gap-1 flex-wrap">
+                <button onclick="filterCategory('all')" data-cat="all"
+                        class="cat-tab px-2 py-1 text-xs font-semibold rounded-lg border transition-all bg-amber-500 text-white border-amber-500">
+                    All
+                </button>
+                @foreach($categories as $cat)
+                <button onclick="filterCategory('{{ $cat }}')" data-cat="{{ $cat }}"
+                        class="cat-tab px-2 py-1 text-xs font-semibold rounded-lg border transition-all bg-white text-gray-600 border-gray-200 hover:bg-amber-50 hover:text-amber-600">
+                    {{ $cat }}
+                </button>
+                @endforeach
+            </div>
+        </div>
+
+        {{-- Product Grid --}}
+        <div class="overflow-y-auto flex-1 p-3">
+            <div class="grid grid-cols-2 gap-2" id="product-grid">
+                @foreach($products as $p)
+                <form method="POST" action="{{ route('orders.addItem', $order) }}" class="product-card-form"
+                    data-name="{{ strtolower($p->name) }}" data-category="{{ $p->category }}">
+                    @csrf
+                    <input type="hidden" name="product_id" value="{{ $p->id }}">
+                    <div class="w-full bg-gray-50 rounded-xl border border-gray-200 hover:border-amber-400 hover:bg-amber-50 transition-all">
+                        <button type="submit" class="w-full p-2 text-left active:scale-95">
+                            <div class="w-full aspect-square rounded-lg overflow-hidden bg-indigo-50 flex items-center justify-center mb-1.5">
+                                @if($p->hasImage())
+                                <img src="{{ $p->imageUrl() }}" class="w-full h-full object-cover">
+                                @else
+                                <span class="text-indigo-600 font-black text-lg uppercase">{{ substr($p->name, 0, 2) }}</span>
+                                @endif
+                            </div>
+                            <p class="text-xs font-bold text-gray-800 leading-tight truncate">{{ $p->name }}</p>
+                            <p class="text-xs font-black text-indigo-600">₱{{ number_format($p->price, 2) }}</p>
+                            <p class="text-xs text-gray-400">{{ $p->stock }} left</p>
+                        </button>
+                        <div class="px-2 pb-2">
+                            <input type="number" name="qty" min="1" max="{{ $p->stock }}" value="1" required
+                                onclick="event.stopPropagation()"
+                                class="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-amber-300">
+                        </div>
+                    </div>
+                </form>
+                @endforeach
+            </div>
+            <p id="no-results" class="hidden text-center text-gray-400 text-xs py-6">No products found.</p>
+        </div>
+    </div>
 </div>
+
+@else
+<div class="lg:col-span-2">
+    <div class="bg-green-50 border border-green-200 rounded-2xl p-5 text-center">
+        <div class="text-3xl mb-2">&#10003;</div>
+        <p class="font-bold text-green-700">Sale Completed</p>
+        <p class="text-xs text-green-600 mt-1">This order has been finalized and cannot be modified.</p>
+    </div>
+</div>
+@endif
 
 {{-- Receipt Modal --}}
 @if(!$order->isOpen())
@@ -231,7 +274,7 @@
 
         {{-- Modal header --}}
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h3 class="font-bold text-gray-900 text-sm">Receipt — Order #{{ $order->id }}</h3>
+            <h3 class="font-bold text-gray-900 text-sm">Receipt — Sale #{{ $order->id }}</h3>
             <button onclick="document.getElementById('receipt-modal').classList.add('hidden')"
                     class="text-gray-400 hover:text-gray-600 text-lg font-bold">✕</button>
         </div>
@@ -249,7 +292,7 @@
             {{-- Order info --}}
             <div class="space-y-1 mb-4 text-xs text-gray-600">
                 <div class="flex justify-between">
-                    <span class="text-gray-400">Order #</span>
+                    <span class="text-gray-400">Sale #</span>
                     <span class="font-semibold">{{ $order->id }}</span>
                 </div>
                 <div class="flex justify-between">
@@ -288,10 +331,23 @@
             <div class="border-t border-dashed border-gray-300 mb-4"></div>
 
             {{-- Grand total --}}
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-2">
                 <span class="font-bold text-gray-700">TOTAL</span>
                 <span class="text-xl font-black text-indigo-600">₱{{ number_format($order->grand_total, 2) }}</span>
             </div>
+
+            @if($order->payment_method === 'Cash' && $order->amount_tendered)
+            <div class="flex justify-between text-xs mb-1">
+                <span class="text-gray-400">Cash Tendered</span>
+                <span class="font-semibold text-gray-700">₱{{ number_format($order->amount_tendered, 2) }}</span>
+            </div>
+            <div class="flex justify-between text-xs mb-4">
+                <span class="text-gray-400">Change</span>
+                <span class="font-semibold text-green-600">₱{{ number_format($order->amount_tendered - $order->grand_total, 2) }}</span>
+            </div>
+            @else
+            <div class="mb-4"></div>
+            @endif
 
             <div class="border-t border-dashed border-gray-300 mb-4"></div>
 
@@ -338,4 +394,83 @@ function printReceipt() {
 </script>
 @endif
 
+@if($order->isOpen())
+<script>
+function filterCategory(cat) {
+    document.querySelectorAll('.cat-tab').forEach(btn => {
+        const active = btn.dataset.cat === cat;
+        btn.className = `cat-tab px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${
+            active ? 'bg-amber-500 text-white border-amber-500'
+                   : 'bg-white text-gray-600 border-gray-200 hover:bg-amber-50 hover:text-amber-600'
+        }`;
+    });
+    const search = document.getElementById('product-search').value.toLowerCase();
+    filterProducts(cat, search);
+}
+
+function filterProducts(cat, search) {
+    if (cat === undefined) cat = document.querySelector('.cat-tab.bg-amber-500')?.dataset.cat || 'all';
+    if (search === undefined) search = document.getElementById('product-search').value.toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('.product-card-form').forEach(card => {
+        const matchCat    = cat === 'all' || card.dataset.category === cat;
+        const matchSearch = card.dataset.name.includes(search);
+        const show        = matchCat && matchSearch;
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    document.getElementById('no-results').classList.toggle('hidden', visible > 0);
+}
+</script>
+@endif
+
+@if($order->isOpen() && $order->payment_method === 'Cash')
+<script>
+const grandTotal = {{ $order->grand_total }};
+
+function computeChange() {
+    const tendered = parseFloat(document.getElementById('cash-tendered').value) || 0;
+    const change   = tendered - grandTotal;
+    const display  = document.getElementById('display-change');
+    const error    = document.getElementById('change-error');
+
+    if (tendered > 0 && change < 0) {
+        display.textContent = '₱0.00';
+        error.classList.remove('hidden');
+    } else {
+        error.classList.add('hidden');
+        display.textContent = '₱' + Math.max(0, change).toLocaleString('en-PH', {minimumFractionDigits:2});
+    }
+    document.getElementById('hidden-tendered').value = tendered;
+}
+
+function setTendered(amount) {
+    document.getElementById('cash-tendered').value = amount;
+    computeChange();
+}
+
+function confirmComplete() {
+    const tendered = parseFloat(document.getElementById('cash-tendered').value) || 0;
+    if (tendered < grandTotal) {
+        alert('⚠ Please enter a cash amount that covers the total of ₱' + grandTotal.toFixed(2));
+        return false;
+    }
+    return confirm('Mark this sale as completed?');
+}
+</script>
+@else
+<script>
+function confirmComplete() {
+    return confirm('Mark this sale as completed?');
+}
+
+// Pre-fill change on load if tendered amount exists
+document.addEventListener('DOMContentLoaded', function() {
+    const tendered = document.getElementById('cash-tendered');
+    if (tendered && tendered.value) {
+        computeChange();
+    }
+});
+</script>
+@endif
 @endsection

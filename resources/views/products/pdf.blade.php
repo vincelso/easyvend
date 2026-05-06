@@ -30,8 +30,15 @@
 </head>
 <body>
 <div class="header">
-    <h1>EasyVend — Inventory Report</h1>
-    <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+    <div style="display:table; width:100%">
+        <div style="display:table-cell; vertical-align:middle; width:120px;">
+            <img src="{{ public_path('images/logo.png') }}" style="height:50px; width:auto;">
+        </div>
+        <div style="display:table-cell; vertical-align:middle;">
+            <h1>EasyVend — Inventory Report</h1>
+            <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+        </div>
+    </div>
 </div>
 <div class="container">
     <div class="meta">

@@ -13,24 +13,20 @@ class OrderController extends Controller
     // ── POS / New Order page ──────────────────────
     public function create()
     {
-        $products     = Product::where('stock', '>', 0)->orderBy('name')->get();
-        $openOrders   = Order::with('items.product')
+        $products   = Product::where('stock', '>', 0)->orderBy('name')->get();
+        $categories = Product::where('stock', '>', 0)->distinct()->orderBy('category')->pluck('category'); // ← ADD
+        $openOrders = Order::with('items.product')
                             ->where('user_id', auth()->id())
                             ->where('status', 'open')
-                            ->latest()
-                            ->take(10)
-                            ->get();
+                            ->latest()->take(10)->get();
 
-        // Also show admin all open orders
         if (auth()->user()->isAdmin()) {
             $openOrders = Order::with(['items.product', 'user'])
                             ->where('status', 'open')
-                            ->latest()
-                            ->take(10)
-                            ->get();
+                            ->latest()->take(10)->get();
         }
 
-        return view('orders.create', compact('products', 'openOrders'));
+        return view('orders.create', compact('products', 'openOrders', 'categories')); // ← add categories
     }
 
     // ── Start a new order (save customer name + payment) ──
@@ -46,11 +42,12 @@ class OrderController extends Controller
 
         // Create the order
         $order = Order::create([
-            'user_id'        => auth()->id(),
-            'customer_name'  => $request->customer_name,
-            'payment_method' => $request->payment_method,
-            'status'         => 'open',
-            'grand_total'    => 0,
+            'user_id'         => auth()->id(),
+            'customer_name'   => $request->customer_name,
+            'payment_method'  => $request->payment_method,
+            'status'          => 'open',
+            'grand_total'     => 0,
+            'amount_tendered' => $request->payment_method === 'Cash' ? $request->amount_tendered : null, // ← ADD
         ]);
 
         // Add each item
@@ -78,7 +75,7 @@ class OrderController extends Controller
         $order->recalculateTotal();
 
         return redirect()->route('orders.show', $order)
-                         ->with('success', 'Order created successfully.');
+                         ->with('success', 'Sale created successfully.');
     }
 
     // ── View order (receipt style) ─────────────────
@@ -86,8 +83,9 @@ class OrderController extends Controller
     {
         $this->gateOrder($order);
         $order->load('items.product', 'user');
-        $products = Product::where('stock', '>', 0)->orderBy('name')->get();
-        return view('orders.show', compact('order', 'products'));
+        $products   = Product::where('stock', '>', 0)->orderBy('name')->get();
+        $categories = Product::where('stock', '>', 0)->distinct()->orderBy('category')->pluck('category'); // ← ADD
+        return view('orders.show', compact('order', 'products', 'categories')); // ← add categories
     }
 
     // ── Add more items to an existing OPEN order ───
@@ -96,7 +94,7 @@ class OrderController extends Controller
         $this->gateOrder($order);
 
         if (!$order->isOpen()) {
-            return back()->with('error', 'This order is already completed and cannot be modified.');
+            return back()->with('error', 'This sale is already completed and cannot be modified.');
         }
 
         $request->validate([
@@ -131,16 +129,16 @@ class OrderController extends Controller
         $product->decrement('stock', $request->qty);
         $order->recalculateTotal();
 
-        return back()->with('success', "Added {$request->qty}x {$product->name} to the order.");
+        return back()->with('success', "Added {$request->qty}x {$product->name} to the sale.");
     }
 
-    // ── Remove item from order ─────────────────────
+    // ── Remove item from sale ─────────────────────
     public function removeItem(Order $order, OrderItem $item)
     {
         $this->gateOrder($order);
 
         if (!$order->isOpen()) {
-            return back()->with('error', 'This order is already completed.');
+            return back()->with('error', 'This sale is already completed.');
         }
 
         // Restore stock
@@ -148,15 +146,20 @@ class OrderController extends Controller
         $item->delete();
         $order->recalculateTotal();
 
-        return back()->with('success', 'Item removed from order.');
+        return back()->with('success', 'Item removed from sale.');
     }
 
-    public function complete(Order $order)
+    public function complete(Request $request, Order $order)
 {
     $this->gateOrder($order);
 
     if ($order->items->isEmpty()) {
-        return back()->with('error', 'Cannot complete an empty order.');
+        return back()->with('error', 'Cannot complete an empty sale.');
+    }
+
+    // Save tendered amount for Cash payments
+    if ($order->payment_method === 'Cash' && $request->amount_tendered) {
+        $order->update(['amount_tendered' => $request->amount_tendered]);
     }
 
     // Auto-create a transaction record for each item
@@ -174,7 +177,7 @@ class OrderController extends Controller
     $order->update(['status' => 'completed']);
 
     return redirect()->route('orders.index')
-                     ->with('success', "Order #{$order->id} for {$order->customer_name} completed.");
+                     ->with('success', "Sale #{$order->id} for {$order->customer_name} completed.");
 }
 
         // Update payment method
@@ -183,7 +186,7 @@ class OrderController extends Controller
         $this->gateOrder($order);
 
         if (!$order->isOpen()) {
-            return back()->with('error', 'Cannot modify a completed order.');
+            return back()->with('error', 'Cannot modify a completed sale.');
         }
 
         $request->validate([
@@ -201,7 +204,7 @@ class OrderController extends Controller
         $this->gateOrder($order);
 
         if (!$order->isOpen()) {
-            return back()->with('error', 'Cannot modify a completed order.');
+            return back()->with('error', 'Cannot modify a completed sale.');
         }
 
         $request->validate(['qty' => 'required|integer|min:0']);
@@ -236,35 +239,43 @@ class OrderController extends Controller
     }
 
     // ── List all orders ────────────────────────────
-    public function index(Request $request)
+        public function index(Request $request)
     {
-        $search = $request->get('search', '');
-        $status = $request->get('status', '');
+        $search   = $request->get('search', '');
+        $status   = $request->get('status', '');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
 
         $query = Order::with(['items', 'user']);
 
         if (auth()->user()->isCashier()) {
             $query->where('user_id', auth()->id());
         }
-
         if ($search) {
             $query->where('customer_name', 'like', "%{$search}%");
         }
-
         if ($status) {
             $query->where('status', $status);
+        }
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
         }
 
         $orders = $query->latest()->paginate(10)->withQueryString();
 
-        return view('orders.index', compact('orders', 'search', 'status'));
+        return view('orders.index', compact('orders', 'search', 'status', 'dateFrom', 'dateTo'));
     }
 
-        public function export(Request $request)
+    public function export(Request $request)
     {
-        $search = $request->get('search', '');
-        $status = $request->get('status', '');
-        $user   = auth()->user();
+        $search   = $request->get('search', '');
+        $status   = $request->get('status', '');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
+        $user     = auth()->user();
 
         $query = Order::with(['items', 'user']);
 
@@ -277,6 +288,12 @@ class OrderController extends Controller
         if ($status) {
             $query->where('status', $status);
         }
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
 
         $orders = $query->latest()->get();
 
@@ -284,11 +301,13 @@ class OrderController extends Controller
             'orders'      => $orders,
             'search'      => $search,
             'status'      => $status,
+            'dateFrom'    => $dateFrom,
+            'dateTo'      => $dateTo,
             'generatedAt' => now()->format('M d, Y h:i A'),
             'generatedBy' => $user->name,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download('easyvend-orders-' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->download('easyvend-sales-' . now()->format('Y-m-d') . '.pdf');
     }
 
     
@@ -306,14 +325,14 @@ class OrderController extends Controller
         $order->delete();
 
         return redirect()->route('orders.index')
-                         ->with('success', 'Order deleted and stock restored.');
+                         ->with('success', 'Sale deleted and stock restored.');
     }
 
     // ── Authorization ──────────────────────────────
     private function gateOrder(Order $order): void
     {
         if (auth()->user()->isCashier() && $order->user_id !== auth()->id()) {
-            abort(403, 'You can only manage your own orders.');
+            abort(403, 'You can only manage your own sales.');
         }
     }
 }

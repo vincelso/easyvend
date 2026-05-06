@@ -29,19 +29,29 @@
 </head>
 <body>
 <div class="header">
-    <h1>EasyVend — Orders Report</h1>
-    <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+    <div style="display:table; width:100%">
+        <div style="display:table-cell; vertical-align:middle; width:120px;">
+            <img src="{{ public_path('images/logo.png') }}" style="height:50px; width:auto;">
+        </div>
+        <div style="display:table-cell; vertical-align:middle;">
+            <h1>EasyVend — Sales Report</h1>
+            <p>Generated on {{ $generatedAt }} by {{ $generatedBy }}</p>
+        </div>
+    </div>
 </div>
 <div class="container">
     <div class="meta">
-        @if($search) Filter: Customer name contains "<span>{{ $search }}</span>" &nbsp;|&nbsp; @endif
+        @if($search) Customer: "<span>{{ $search }}</span>" &nbsp;|&nbsp; @endif
         @if($status) Status: <span>{{ ucfirst($status) }}</span> &nbsp;|&nbsp; @endif
+        @if($dateFrom || $dateTo)
+            Period: <span>{{ $dateFrom ?: 'All time' }}</span> to <span>{{ $dateTo ?: 'present' }}</span> &nbsp;|&nbsp;
+        @endif
         Total records: <span>{{ $orders->count() }}</span>
     </div>
 
     <div class="summary">
         <div class="summary-box">
-            <div class="label">Total Orders</div>
+            <div class="label">Total Sales</div>
             <div class="value">{{ $orders->count() }}</div>
         </div>
         <div class="summary-box">
@@ -77,10 +87,10 @@
                 <td>{{ $order->payment_method }}</td>
                 <td>{{ $order->user->name ?? '—' }}</td>
                 <td><span class="badge {{ $order->status === 'completed' ? 'badge-green' : 'badge-amber' }}">{{ ucfirst($order->status) }}</span></td>
-                <td>{{ $order->created_at->format('M d, Y') }}</td>
+                <td>{{ $order->created_at->format('M d, Y h:i A') }}</td>
             </tr>
             @empty
-            <tr><td colspan="8" style="text-align:center; padding:20px; color:#9ca3af">No orders found.</td></tr>
+            <tr><td colspan="8" style="text-align:center; padding:20px; color:#9ca3af">No sales found.</td></tr>
             @endforelse
         </tbody>
     </table>

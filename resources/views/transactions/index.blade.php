@@ -9,25 +9,38 @@
             {{ auth()->user()->isAdmin() ? 'All transactions' : 'Your transactions' }}
         </p>
     </div>
+    </a>
 </div>
 
 {{-- Search --}}
 <form method="GET" action="{{ route('transactions.index') }}" class="mb-4">
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-wrap items-center">
         <input type="text" name="search" value="{{ $search }}" placeholder="Search product..."
-               class="border border-gray-200 rounded-xl px-4 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+               class="border border-gray-200 rounded-xl px-4 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+        <select name="category"
+                class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+            <option value="">All Categories</option>
+            @foreach($categories as $cat)
+            <option value="{{ $cat }}" {{ $category === $cat ? 'selected' : '' }}>{{ $cat }}</option>
+            @endforeach
+        </select>
+        <input type="date" name="date_from" value="{{ $dateFrom }}"
+               class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+        <span class="text-xs text-gray-400">to</span>
+        <input type="date" name="date_to" value="{{ $dateTo }}"
+               class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
         <button type="submit"
                 class="px-4 py-2 bg-gray-700 text-white text-sm rounded-xl hover:bg-gray-800 transition-all">
             Search
         </button>
-        @if($search)
+        @if($search || $category || $dateFrom || $dateTo)
         <a href="{{ route('transactions.index') }}"
            class="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50">
             Clear
         </a>
         @endif
-        <a href="{{ route('transactions.export', ['search' => $search]) }}"
-        class="flex items-center gap-1.5 px-3 py-2 bg-gray-700 text-white text-xs font-semibold rounded-xl hover:bg-gray-800 transition-all">
+        <a href="{{ route('transactions.export', ['search' => $search, 'category' => $category, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+           class="flex items-center gap-1.5 px-3 py-2 bg-gray-700 text-white text-xs font-semibold rounded-xl hover:bg-gray-800 transition-all">
             📋 Export PDF
         </a>
     </div>
@@ -69,7 +82,7 @@
                         {{ $t->payment_method }}
                     </span>
                 </td>
-                <td class="px-5 py-3 text-gray-500">{{ $t->created_at->format('M d, Y') }}</td>
+                <td class="px-5 py-3 text-gray-500">{{ $t->created_at->format('M d, Y h:i A') }}</td>
                 @if(auth()->user()->isAdmin())
                 <td class="px-5 py-3">
                     <form method="POST" action="{{ route('transactions.destroy', $t) }}"

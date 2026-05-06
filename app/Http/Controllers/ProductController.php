@@ -10,13 +10,18 @@ class ProductController extends Controller
 {
         public function index(Request $request)
     {
-        $search  = $request->get('search', '');
-        $filter  = $request->get('filter', '');
+        $search   = $request->get('search', '');
+        $filter   = $request->get('filter', '');
+        $category = $request->get('category', '');
 
         $query = Product::when($search, fn($q) =>
             $q->where('name', 'like', "%{$search}%")
             ->orWhere('category', 'like', "%{$search}%")
         );
+
+        if ($category) {
+            $query->where('category', $category);
+        }
 
         if ($filter === 'out') {
             $query->where('stock', 0);
@@ -32,6 +37,8 @@ class ProductController extends Controller
 
         $products = $query->latest()->paginate(10)->withQueryString();
 
+        $categories = Product::distinct()->orderBy('category')->pluck('category');
+
         $expiredCount      = Product::whereNotNull('expiry_date')
                                 ->whereDate('expiry_date', '<', today())->count();
         $expiringSoonCount = Product::whereNotNull('expiry_date')
@@ -39,8 +46,8 @@ class ProductController extends Controller
                                 ->whereDate('expiry_date', '<=', today()->addDays(30))->count();
 
         return view('products.index', compact(
-            'products', 'search', 'filter',
-            'expiredCount', 'expiringSoonCount'
+            'products', 'search', 'filter', 'category',
+            'categories', 'expiredCount', 'expiringSoonCount'
         ));
     }
 
@@ -49,7 +56,7 @@ class ProductController extends Controller
         return view('products.create');
     }
 
-    public function store(Request $request)
+        public function store(Request $request)
     {
         $request->validate([
             'name'        => 'required|string|max:150',
@@ -57,37 +64,38 @@ class ProductController extends Controller
             'price'       => 'required|numeric|min:0',
             'stock'       => 'required|integer|min:0',
             'expiry_date' => 'nullable|date|after_or_equal:today',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'image'       => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
         $existing = Product::whereRaw('LOWER(name) = ?', [strtolower($request->name)])->first();
-        $data = $request->only('name', 'category', 'price', 'stock', 'expiry_date');
-
-        if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('products', 'public');
-            }
-
-        Product::create($data);
-
-              return redirect()->route('products.index')
-                     ->with('success', 'Product added successfully.');
 
         if ($existing) {
             $existing->increment('stock', $request->stock);
             if ($request->expiry_date) {
                 if (!$existing->expiry_date || $request->expiry_date < $existing->expiry_date->format('Y-m-d')) {
-                    $existing->update(['expiry_date' => $request->expiry_date]);
+                    $existing->update(['expiry_date' => 'nullable|date|after_or_equal:today',]);
                 }
+            }
+            if ($request->hasFile('image')) {
+                if ($existing->image) {
+                    Storage::disk('public')->delete($existing->image);
+                }
+                $existing->update(['image' => $request->file('image')->store('products', 'public')]);
             }
             $newStock = $existing->fresh()->stock;
             return redirect()->route('products.index')
-                             ->with('success', "'{$existing->name}' already exists. Stock updated by +{$request->stock} (now {$newStock}).");
+                            ->with('success', "'{$existing->name}' already exists. Stock updated by +{$request->stock} (now {$newStock}).");
         }
 
-        Product::create($request->only('name', 'category', 'price', 'stock', 'expiry_date'));
+        $data = $request->only('name', 'category', 'price', 'stock', 'expiry_date');
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('products', 'public');
+        }
+
+        Product::create($data);
 
         return redirect()->route('products.index')
-                         ->with('success', 'Product added successfully.');
+                        ->with('success', 'Product added successfully.');
     }
 
     public function edit(Product $product)
@@ -130,15 +138,20 @@ class ProductController extends Controller
     }
 
         // ── Export products as PDF ─────────────────────
-        public function export(Request $request)
+            public function export(Request $request)
     {
-        $search = $request->get('search', '');
-        $filter = $request->get('filter', '');
+        $search   = $request->get('search', '');
+        $filter   = $request->get('filter', '');
+        $category = $request->get('category', '');
 
         $query = Product::when($search, fn($q) =>
             $q->where('name', 'like', "%{$search}%")
             ->orWhere('category', 'like', "%{$search}%")
         );
+
+        if ($category) {
+            $query->where('category', $category);
+        }
 
         if ($filter === 'out') {
             $query->where('stock', 0);
@@ -158,6 +171,7 @@ class ProductController extends Controller
             'products'    => $products,
             'search'      => $search,
             'filter'      => $filter,
+            'category'    => $category,
             'generatedAt' => now()->format('M d, Y h:i A'),
             'generatedBy' => auth()->user()->name,
         ])->setPaper('a4', 'portrait');

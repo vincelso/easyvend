@@ -12,40 +12,59 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
-    public function index(Request $request)
+        public function index(Request $request)
     {
-        $period = $request->get('period', '30');
-        $data   = $this->getReportData($request);
+        $period   = $request->get('period', '30');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
+        $data     = $this->getReportData($request);
 
-        return view('reports.index', array_merge($data, ['period' => $period]));
+        return view('reports.index', array_merge($data, [
+            'period'   => $period,
+            'dateFrom' => $dateFrom,
+            'dateTo'   => $dateTo,
+        ]));
     }
 
     public function export(Request $request)
     {
-        $period = $request->get('period', '30');
-        $type   = $request->get('type', 'sales'); // sales, stock, users
-        $data   = $this->getReportData($request);
+        $period   = $request->get('period', '30');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
+        $type     = $request->get('type', 'sales');
+        $data     = $this->getReportData($request);
 
         $pdf = Pdf::loadView('reports.pdf', array_merge($data, [
             'period'      => $period,
+            'dateFrom'    => $dateFrom,
+            'dateTo'      => $dateTo,
             'type'        => $type,
             'generatedAt' => now()->format('M d, Y h:i A'),
             'generatedBy' => auth()->user()->name,
         ]))->setPaper('a4', 'portrait');
 
         $filename = "easyvend-{$type}-report-" . now()->format('Y-m-d') . ".pdf";
-
         return $pdf->download($filename);
     }
 
     private function getReportData(Request $request): array
     {
-        $period    = $request->get('period', '30');
-        $startDate = now()->subDays((int) $period)->startOfDay();
-        $user      = auth()->user();
+        $period   = $request->get('period', '30');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
+        $user     = auth()->user();
 
-        // Base transaction query (cashier sees only their own)
-        $txQuery = Transaction::where('created_at', '>=', $startDate);
+        // Determine date range
+        if ($dateFrom || $dateTo) {
+            $startDate = $dateFrom ? \Carbon\Carbon::parse($dateFrom)->startOfDay() : now()->subYears(10);
+            $endDate   = $dateTo  ? \Carbon\Carbon::parse($dateTo)->endOfDay()     : now()->endOfDay();
+        } else {
+            $startDate = now()->subDays((int) $period)->startOfDay();
+            $endDate   = now()->endOfDay();
+        }
+
+        // Base transaction query
+        $txQuery = Transaction::whereBetween('created_at', [$startDate, $endDate]);
         if ($user->isCashier()) {
             $txQuery->where('user_id', $user->id);
         }
@@ -57,7 +76,7 @@ class ReportController extends Controller
         // Top products
         $topProductsQuery = DB::table('transactions')
             ->join('products', 'transactions.product_id', '=', 'products.id')
-            ->where('transactions.created_at', '>=', $startDate);
+            ->whereBetween('transactions.created_at', [$startDate, $endDate]);
         if ($user->isCashier()) {
             $topProductsQuery->where('transactions.user_id', $user->id);
         }
@@ -70,7 +89,7 @@ class ReportController extends Controller
             ->limit(5)->get();
 
         // Payment breakdown
-        $paymentQuery = Transaction::where('created_at', '>=', $startDate);
+        $paymentQuery = Transaction::whereBetween('created_at', [$startDate, $endDate]);
         if ($user->isCashier()) {
             $paymentQuery->where('user_id', $user->id);
         }
@@ -81,7 +100,7 @@ class ReportController extends Controller
             ->groupBy('payment_method')->get();
 
         // Daily sales
-        $dailyQuery = Transaction::where('created_at', '>=', $startDate);
+        $dailyQuery = Transaction::whereBetween('created_at', [$startDate, $endDate]);
         if ($user->isCashier()) {
             $dailyQuery->where('user_id', $user->id);
         }
@@ -97,7 +116,7 @@ class ReportController extends Controller
         if ($user->isAdmin()) {
             $cashierStats = DB::table('transactions')
                 ->join('users', 'transactions.user_id', '=', 'users.id')
-                ->where('transactions.created_at', '>=', $startDate)
+                ->whereBetween('transactions.created_at', [$startDate, $endDate])
                 ->select('users.name',
                     DB::raw('COUNT(*) as total_orders'),
                     DB::raw('SUM(transactions.total) as total_revenue'))

@@ -4,35 +4,56 @@
 
 @section('content')
 
-{{-- Period filter --}}
-<div class="flex items-center gap-3 mb-3">
-    <span class="text-sm text-gray-500 font-medium">Show data for:</span>
-    @foreach([7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days'] as $days => $label)
-    <a href="{{ route('reports.index', ['period' => $days]) }}"
-       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all
-              {{ $period == $days ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">
-        {{ $label }}
-    </a>
-    @endforeach
-</div>
+{{-- Filters --}}
+<form method="GET" action="{{ route('reports.index') }}" class="mb-3">
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="text-sm text-gray-500 font-medium">Show data for:</span>
+        @foreach([7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days'] as $days => $label)
+        <a href="{{ route('reports.index', ['period' => $days]) }}"
+           class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                  {{ $period == $days && !$dateFrom && !$dateTo ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">
+            {{ $label }}
+        </a>
+        @endforeach
+
+        <span class="text-gray-300">|</span>
+
+        <span class="text-sm text-gray-500 font-medium">Custom range:</span>
+        <input type="date" name="date_from" value="{{ $dateFrom }}"
+               class="border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+        <span class="text-xs text-gray-400">to</span>
+        <input type="date" name="date_to" value="{{ $dateTo }}"
+               class="border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+        <button type="submit"
+                class="px-4 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all">
+            Apply
+        </button>
+        @if($dateFrom || $dateTo)
+        <a href="{{ route('reports.index') }}"
+           class="px-3 py-1.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-all">
+            Clear
+        </a>
+        @endif
+    </div>
+</form>
 
 {{-- Export buttons --}}
 <div class="flex items-center gap-2 mb-6 flex-wrap">
     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Export PDF:</span>
-    <a href="{{ route('reports.export', ['period' => $period, 'type' => 'sales']) }}"
+    <a href="{{ route('reports.export', ['period' => $period, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'type' => 'sales']) }}"
        class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
         📊 Sales Report
     </a>
-    <a href="{{ route('reports.export', ['period' => $period, 'type' => 'stock']) }}"
+    <a href="{{ route('reports.export', ['period' => $period, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'type' => 'stock']) }}"
        class="px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-lg hover:bg-amber-600 transition-all">
         📦 Stock Report
     </a>
     @if(auth()->user()->isAdmin())
-    <a href="{{ route('reports.export', ['period' => $period, 'type' => 'users']) }}"
+    <a href="{{ route('reports.export', ['period' => $period, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'type' => 'users']) }}"
        class="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 transition-all">
         👥 User Report
     </a>
-    <a href="{{ route('reports.export', ['period' => $period, 'type' => 'all']) }}"
+    <a href="{{ route('reports.export', ['period' => $period, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'type' => 'all']) }}"
        class="px-3 py-1.5 bg-gray-700 text-white text-xs font-semibold rounded-lg hover:bg-gray-800 transition-all">
         📋 Full Report
     </a>
@@ -44,15 +65,21 @@
     <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Total Revenue</p>
         <p class="text-2xl font-bold text-gray-900">₱{{ number_format($totalRevenue, 2) }}</p>
-        <p class="text-xs text-gray-400 mt-1">Last {{ $period }} days</p>
+        <p class="text-xs text-gray-400 mt-1">
+            @if($dateFrom || $dateTo)
+                {{ $dateFrom ?: 'All time' }} {{ $dateTo ? '→ ' . $dateTo : '' }}
+            @else
+                Last {{ $period }} days
+            @endif
+        </p>
     </div>
     <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Total Orders</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Total Sales</p>
         <p class="text-2xl font-bold text-gray-900">{{ number_format($totalOrders) }}</p>
         <p class="text-xs text-gray-400 mt-1">Transactions processed</p>
     </div>
     <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Avg. Order Value</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Avg. Sale Value</p>
         <p class="text-2xl font-bold text-gray-900">₱{{ number_format($avgOrder, 2) }}</p>
         <p class="text-xs text-gray-400 mt-1">Per transaction</p>
     </div>
@@ -141,7 +168,7 @@
                 <div>
                     <div class="flex items-center justify-between text-xs mb-1">
                         <span class="font-medium text-gray-700">{{ $pm->payment_method }}</span>
-                        <span class="text-gray-500">{{ $pm->count }} orders · ₱{{ number_format($pm->total, 2) }}</span>
+                        <span class="text-gray-500">{{ $pm->count }} sales · ₱{{ number_format($pm->total, 2) }}</span>
                     </div>
                     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div class="h-2 bg-indigo-500 rounded-full transition-all"
@@ -165,7 +192,7 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Cashier</th>
-                        <th class="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Orders</th>
+                        <th class="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Sales</th>
                         <th class="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Revenue</th>
                     </tr>
                 </thead>

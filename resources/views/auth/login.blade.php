@@ -11,12 +11,9 @@
     {{-- Navbar (guest) --}}
     <nav class="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 shadow-sm z-50">
         <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-14">
-            <a href="{{ route('home') }}" class="flex items-center gap-2">
-                <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-                    <span class="text-white font-bold text-xs">EV</span>
-                </div>
-                <span class="font-bold text-gray-900">Easy<span class="text-indigo-600">Vend</span></span>
-            </a>
+                <a href="{{ route('home') }}" class="flex items-center gap-2">
+                    <img src="{{ asset('images/logo.png') }}" alt="EasyVend" class="h-8 w-auto">
+                </a>
             <div class="flex items-center gap-1">
                 <a href="{{ route('home') }}"
                    class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all
@@ -36,9 +33,7 @@
     <div class="w-full max-w-md mt-14">
         {{-- Logo --}}
         <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-3 shadow-lg">
-                <span class="text-white font-bold text-lg">EV</span>
-            </div>
+            <img src="{{ asset('images/logo.png') }}" alt="EasyVend" class="h-20 w-auto mx-auto mb-3">
             <h1 class="text-2xl font-bold text-gray-900">Welcome back</h1>
             <p class="text-gray-500 text-sm mt-1">Sign in to your EasyVend account</p>
         </div>
