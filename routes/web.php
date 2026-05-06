@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Route;
 
 // ── Public ────────────────────────────────────────
 Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+    return redirect('/login');
+});
 
 // ── Authenticated ─────────────────────────────────
 Route::middleware(['auth'])->group(function () {
