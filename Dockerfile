@@ -10,7 +10,8 @@ libonig-dev \
 libxml2-dev \
 libpng-dev \
 zip \
-&& docker-php-ext-install pdo pdo_mysql pdo_pgsql zip mbstring xml \
+&& docker-php-ext-configure gd --with-jpeg --with-png \
+&& docker-php-ext-install pdo pdo_mysql pdo_pgsql zip mbstring xml gd \
 && apt-get clean \
 && rm -rf /var/lib/apt/lists/*
 # Enable Apache rewrite
