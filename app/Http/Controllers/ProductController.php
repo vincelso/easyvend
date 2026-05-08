@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class ProductController extends Controller
 {
-        public function index(Request $request)
+    public function index(Request $request)
     {
         $search   = $request->get('search', '');
         $filter   = $request->get('filter', '');
@@ -36,7 +36,6 @@ class ProductController extends Controller
         }
 
         $products = $query->latest()->paginate(10)->withQueryString();
-
         $categories = Product::distinct()->orderBy('category')->pluck('category');
 
         $expiredCount      = Product::whereNotNull('expiry_date')
@@ -56,7 +55,7 @@ class ProductController extends Controller
         return view('products.create');
     }
 
-        public function store(Request $request)
+    public function store(Request $request)
     {
         $request->validate([
             'name'        => 'required|string|max:150',
@@ -71,31 +70,38 @@ class ProductController extends Controller
 
         if ($existing) {
             $existing->increment('stock', $request->stock);
-            if ($request->expiry_date) {
-                if (!$existing->expiry_date || $request->expiry_date < $existing->expiry_date->format('Y-m-d')) {
-                    $existing->update(['expiry_date' => 'nullable|date|after_or_equal:today',]);
-                }
-            }
             if ($request->hasFile('image')) {
+                // Delete old image from Cloudinary
                 if ($existing->image) {
-                    Storage::disk('public')->delete($existing->image);
+                    Cloudinary::destroy($existing->image_public_id);
                 }
-                $existing->update(['image' => $request->file('image')->store('products', 'public')]);
+                $uploaded = Cloudinary::upload($request->file('image')->getRealPath(), [
+                    'folder' => 'easyvend/products'
+                ]);
+                $existing->update([
+                    'image'           => $uploaded->getSecurePath(),
+                    'image_public_id' => $uploaded->getPublicId(),
+                ]);
             }
             $newStock = $existing->fresh()->stock;
             return redirect()->route('products.index')
-                            ->with('success', "'{$existing->name}' already exists. Stock updated by +{$request->stock} (now {$newStock}).");
+                ->with('success', "'{$existing->name}' already exists. Stock updated by +{$request->stock} (now {$newStock}).");
         }
 
         $data = $request->only('name', 'category', 'price', 'stock', 'expiry_date');
+
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('products', 'public');
+            $uploaded = Cloudinary::upload($request->file('image')->getRealPath(), [
+                'folder' => 'easyvend/products'
+            ]);
+            $data['image']           = $uploaded->getSecurePath();
+            $data['image_public_id'] = $uploaded->getPublicId();
         }
 
         Product::create($data);
 
         return redirect()->route('products.index')
-                        ->with('success', 'Product added successfully.');
+            ->with('success', 'Product added successfully.');
     }
 
     public function edit(Product $product)
@@ -118,27 +124,30 @@ class ProductController extends Controller
 
         // Handle image removal
         if ($request->boolean('remove_image') && $product->image) {
-            Storage::disk('public')->delete($product->image);
-            $data['image'] = null;
+            Cloudinary::destroy($product->image_public_id);
+            $data['image']           = null;
+            $data['image_public_id'] = null;
         }
 
         // Handle new image upload
         if ($request->hasFile('image')) {
-            // Delete old image first
-            if ($product->image) {
-                Storage::disk('public')->delete($product->image);
+            if ($product->image_public_id) {
+                Cloudinary::destroy($product->image_public_id);
             }
-            $data['image'] = $request->file('image')->store('products', 'public');
+            $uploaded = Cloudinary::upload($request->file('image')->getRealPath(), [
+                'folder' => 'easyvend/products'
+            ]);
+            $data['image']           = $uploaded->getSecurePath();
+            $data['image_public_id'] = $uploaded->getPublicId();
         }
 
         $product->update($data);
 
         return redirect()->route('products.index')
-                        ->with('success', 'Product updated successfully.');
+            ->with('success', 'Product updated successfully.');
     }
 
-        // ── Export products as PDF ─────────────────────
-            public function export(Request $request)
+    public function export(Request $request)
     {
         $search   = $request->get('search', '');
         $filter   = $request->get('filter', '');
@@ -181,8 +190,11 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        if ($product->image_public_id) {
+            Cloudinary::destroy($product->image_public_id);
+        }
         $product->delete();
         return redirect()->route('products.index')
-                         ->with('success', 'Product deleted.');
+            ->with('success', 'Product deleted.');
     }
 }
