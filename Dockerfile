@@ -9,6 +9,7 @@ libzip-dev \
 libonig-dev \
 libxml2-dev \
 libpng-dev \
+libjpeg-dev \
 zip \
 && docker-php-ext-configure gd --with-jpeg \
 && docker-php-ext-install pdo pdo_mysql pdo_pgsql zip mbstring xml gd \
