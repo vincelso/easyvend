@@ -10,13 +10,14 @@ class Product extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
+        protected $fillable = [
         'name',
         'category',
         'price',
         'stock',
         'expiry_date',
         'image',
+        'image_public_id', // 👈 add this
     ];
 
     protected $casts = [
@@ -24,17 +25,14 @@ class Product extends Model
     ];
 
     // ── Image helpers ─────────────────────────────
-    public function imageUrl(): string
+        public function imageUrl(): string
     {
-        if ($this->image && file_exists(storage_path('app/public/' . $this->image))) {
-            return asset('storage/' . $this->image);
-        }
-        return '';
+        return $this->image ?? '';
     }
 
     public function hasImage(): bool
     {
-        return !empty($this->image) && file_exists(storage_path('app/public/' . $this->image));
+        return !empty($this->image);
     }
 
     // ── Expiry helpers ────────────────────────────
