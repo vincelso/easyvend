@@ -4,10 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use Illuminate\Http\Request;
-use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
+use Cloudinary\Cloudinary;
+use Cloudinary\Configuration\Configuration;
 
 class ProductController extends Controller
 {
+    private function getCloudinary()
+    {
+        Configuration::instance([
+            'cloud' => [
+                'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+                'api_key'    => env('CLOUDINARY_API_KEY'),
+                'api_secret' => env('CLOUDINARY_API_SECRET'),
+            ],
+            'url' => ['secure' => true]
+        ]);
+        return new Cloudinary();
+    }
+
     public function index(Request $request)
     {
         $search   = $request->get('search', '');
@@ -71,16 +85,16 @@ class ProductController extends Controller
         if ($existing) {
             $existing->increment('stock', $request->stock);
             if ($request->hasFile('image')) {
-                // Delete old image from Cloudinary
-                if ($existing->image) {
-                    Cloudinary::destroy($existing->image_public_id);
+                if ($existing->image_public_id) {
+                    $this->getCloudinary()->uploadApi()->destroy($existing->image_public_id);
                 }
-                $uploaded = Cloudinary::upload($request->file('image')->getRealPath(), [
-                    'folder' => 'easyvend/products'
-                ]);
+                $uploaded = $this->getCloudinary()->uploadApi()->upload(
+                    $request->file('image')->getRealPath(),
+                    ['folder' => 'easyvend/products']
+                );
                 $existing->update([
-                    'image'           => $uploaded->getSecurePath(),
-                    'image_public_id' => $uploaded->getPublicId(),
+                    'image'           => $uploaded['secure_url'],
+                    'image_public_id' => $uploaded['public_id'],
                 ]);
             }
             $newStock = $existing->fresh()->stock;
@@ -91,11 +105,12 @@ class ProductController extends Controller
         $data = $request->only('name', 'category', 'price', 'stock', 'expiry_date');
 
         if ($request->hasFile('image')) {
-            $uploaded = Cloudinary::upload($request->file('image')->getRealPath(), [
-                'folder' => 'easyvend/products'
-            ]);
-            $data['image']           = $uploaded->getSecurePath();
-            $data['image_public_id'] = $uploaded->getPublicId();
+            $uploaded = $this->getCloudinary()->uploadApi()->upload(
+                $request->file('image')->getRealPath(),
+                ['folder' => 'easyvend/products']
+            );
+            $data['image']           = $uploaded['secure_url'];
+            $data['image_public_id'] = $uploaded['public_id'];
         }
 
         Product::create($data);
@@ -124,7 +139,7 @@ class ProductController extends Controller
 
         // Handle image removal
         if ($request->boolean('remove_image') && $product->image) {
-            Cloudinary::destroy($product->image_public_id);
+            $this->getCloudinary()->uploadApi()->destroy($product->image_public_id);
             $data['image']           = null;
             $data['image_public_id'] = null;
         }
@@ -132,13 +147,14 @@ class ProductController extends Controller
         // Handle new image upload
         if ($request->hasFile('image')) {
             if ($product->image_public_id) {
-                Cloudinary::destroy($product->image_public_id);
+                $this->getCloudinary()->uploadApi()->destroy($product->image_public_id);
             }
-            $uploaded = Cloudinary::upload($request->file('image')->getRealPath(), [
-                'folder' => 'easyvend/products'
-            ]);
-            $data['image']           = $uploaded->getSecurePath();
-            $data['image_public_id'] = $uploaded->getPublicId();
+            $uploaded = $this->getCloudinary()->uploadApi()->upload(
+                $request->file('image')->getRealPath(),
+                ['folder' => 'easyvend/products']
+            );
+            $data['image']           = $uploaded['secure_url'];
+            $data['image_public_id'] = $uploaded['public_id'];
         }
 
         $product->update($data);
@@ -191,7 +207,7 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         if ($product->image_public_id) {
-            Cloudinary::destroy($product->image_public_id);
+            $this->getCloudinary()->uploadApi()->destroy($product->image_public_id);
         }
         $product->delete();
         return redirect()->route('products.index')
