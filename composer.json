@@ -58,7 +58,6 @@
         ],
         "post-install-cmd": [
             "@php artisan config:clear",
-            "@php artisan cache:clear",
             "@php artisan migrate --force"
         ],
         "post-update-cmd": [
